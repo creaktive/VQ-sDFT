@@ -29,7 +29,7 @@
 // Configuration limits to ensure static sizing without dynamic calls
 #define MAX_BANDS 64
 #define MAX_KERNEL_LEN 4 // e.g., window size 2 * 2 = 4 max indices
-#define BUFFER_SIZE 2048
+#define BUFFER_SIZE 2048 // must be a power of two!
 
 // Complex integer pair
 typedef struct {
@@ -157,13 +157,13 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
     v->spectrumData[i] = 0;
 
   for (int s = 0; s < num_samples; s++) {
-    v->buffer_idx = (v->buffer_idx + 1) % BUFFER_SIZE;
+    v->buffer_idx = (v->buffer_idx + 1) & (BUFFER_SIZE - 1);
     v->buffer[v->buffer_idx] = samples_q16[s];
 
     for (int i = 0; i < v->num_coeffs; i++) {
       sDFT_Coeff *coeff = &v->coeffs[i];
 
-      int oldestIdx = (v->buffer_idx - coeff->period) % BUFFER_SIZE;
+      int oldestIdx = (v->buffer_idx - coeff->period) & (BUFFER_SIZE - 1);
       if (oldestIdx < 0)
         oldestIdx += BUFFER_SIZE;
 
