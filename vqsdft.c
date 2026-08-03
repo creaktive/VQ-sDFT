@@ -8,14 +8,11 @@
  */
 
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 // Q16.16 Fixed-Point Configuration
 #define Q_SHIFT 16
@@ -27,9 +24,11 @@
 #define MUL_Q(a, b) ((int32_t)((((int64_t)(a)) * ((int64_t)(b))) >> Q_SHIFT))
 
 // Configuration limits to ensure static sizing without dynamic calls
+#define SAMPLE_RATE 8000
+#define BLOCK_SIZE 80
 #define MAX_BANDS 64
 #define MAX_KERNEL_LEN 4 // e.g., window size 2 * 2 = 4 max indices
-#define BUFFER_SIZE 2048 // must be a power of two!
+#define BUFFER_SIZE 512  // must be a power of two!
 
 // Complex integer pair
 typedef struct {
@@ -51,7 +50,7 @@ typedef struct {
 
   cplx_q16_t fiddles[MAX_KERNEL_LEN];
   cplx_q16_t twiddles[MAX_KERNEL_LEN];
-  int32_t resonCoeffs[MAX_KERNEL_LEN];
+  int32_t reson_coeffs[MAX_KERNEL_LEN];
   int32_t gains[MAX_KERNEL_LEN];
 
   // Filter states
@@ -70,7 +69,7 @@ typedef struct {
   int32_t buffer[BUFFER_SIZE]; // Q16.16 sample history
   int buffer_idx;
 
-  int32_t spectrumData[MAX_BANDS]; // Output array
+  int32_t spectrum_data[MAX_BANDS]; // Output array
 } VQsDFT;
 
 // Integer Square Root (Newton-Raphson)
@@ -87,8 +86,8 @@ int32_t isqrt_q16(int64_t n) {
 }
 
 void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
-                 const double *window, int window_len, double timeRes,
-                 int sampleRate) {
+                 const double *window, int window_len, double time_res,
+                 int sample_rate) {
   if (num_bands > MAX_BANDS) {
     printf("%d bands requested while MAX_BANDS=%d!\n", num_bands, MAX_BANDS);
     exit(1);
@@ -100,22 +99,22 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
   for (int i = 0; i <= BUFFER_SIZE - 1; i++)
     v->buffer[i] = 0;
   for (int i = 0; i < MAX_BANDS; i++)
-    v->spectrumData[i] = 0;
+    v->spectrum_data[i] = 0;
 
   for (int b = 0; b < num_bands; b++) {
     sDFT_Coeff *c = &v->coeffs[b];
 
-    double periodFloat = sampleRate / (fabs(bands[b].hi - bands[b].lo) +
-                                       1.0 / (timeRes / 1000.0));
-    if (periodFloat > BUFFER_SIZE - 1) {
+    double period_float = sample_rate / (fabs(bands[b].hi - bands[b].lo) +
+                                         1.0 / (time_res / 1000.0));
+    if (period_float > BUFFER_SIZE - 1) {
       printf("period for band %d exceeds BUFFER_SIZE!\n", b);
       exit(2);
     }
-    c->period = (int32_t)periodFloat;
+    c->period = (int32_t)period_float;
 
-    int minIdx = -window_len + 1;
-    int maxIdx = window_len;
-    int kernel_len = maxIdx - minIdx;
+    int min_idx = -window_len + 1;
+    int max_idx = window_len;
+    int kernel_len = max_idx - min_idx;
 
     if (kernel_len > MAX_KERNEL_LEN) {
       printf("kernel length for band %d is larger than MAX_KERNEL_LEN!\n", b);
@@ -132,11 +131,11 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
       c->coeffs5[j] = (cplx_q16_t){0, 0};
     }
 
-    for (int i = minIdx; i < maxIdx && (i - minIdx) < MAX_KERNEL_LEN; i++) {
-      int j = i - minIdx;
+    for (int i = min_idx; i < max_idx && (i - min_idx) < MAX_KERNEL_LEN; i++) {
+      int j = i - min_idx;
 
       double amplitude = (window[abs(i)] * (-(abs(i) % 2) * 2 + 1)) / c->period;
-      double k = bands[b].ctr * c->period / sampleRate + i;
+      double k = bands[b].ctr * c->period / sample_rate + i;
       double fid = -2.0 * M_PI * k;
       double twid = 2.0 * M_PI * k / c->period;
       double reson = 2.0 * cos(twid);
@@ -145,16 +144,16 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
       c->fiddles[j].y = FLOAT_TO_Q16(sin(fid));
       c->twiddles[j].x = FLOAT_TO_Q16(cos(twid));
       c->twiddles[j].y = FLOAT_TO_Q16(sin(twid));
-      c->resonCoeffs[j] = FLOAT_TO_Q16(reson);
+      c->reson_coeffs[j] = FLOAT_TO_Q16(reson);
       c->gains[j] = FLOAT_TO_Q16(amplitude);
     }
   }
 }
 
 void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
-                          int num_samples) {
+                          int num_samples, bool apply_sqrt) {
   for (int i = 0; i < v->num_coeffs; i++)
-    v->spectrumData[i] = 0;
+    v->spectrum_data[i] = 0;
 
   for (int s = 0; s < num_samples; s++) {
     v->buffer_idx = (v->buffer_idx + 1) & (BUFFER_SIZE - 1);
@@ -163,15 +162,15 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
     for (int i = 0; i < v->num_coeffs; i++) {
       sDFT_Coeff *coeff = &v->coeffs[i];
 
-      int oldestIdx = (v->buffer_idx - coeff->period) & (BUFFER_SIZE - 1);
-      if (oldestIdx < 0)
-        oldestIdx += BUFFER_SIZE;
+      int oldest_idx = (v->buffer_idx - coeff->period) & (BUFFER_SIZE - 1);
+      if (oldest_idx < 0)
+        oldest_idx += BUFFER_SIZE;
 
       int32_t bufLatest = v->buffer[v->buffer_idx];
-      int32_t bufOldest = v->buffer[oldestIdx];
+      int32_t bufOldest = v->buffer[oldest_idx];
 
-      int32_t sumX = 0;
-      int32_t sumY = 0;
+      int32_t sum_x = 0;
+      int32_t sum_y = 0;
 
       for (int j = 0; j < coeff->kernel_length; j++) {
         int32_t combX = MUL_Q(bufLatest, coeff->fiddles[j].x) - bufOldest;
@@ -187,9 +186,9 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
         coeff->coeffs2[j].x = combX;
         coeff->coeffs2[j].y = combY;
 
-        int32_t c3x = c1x + MUL_Q(coeff->resonCoeffs[j], coeff->coeffs4[j].x) -
+        int32_t c3x = c1x + MUL_Q(coeff->reson_coeffs[j], coeff->coeffs4[j].x) -
                       coeff->coeffs5[j].x;
-        int32_t c3y = c1y + MUL_Q(coeff->resonCoeffs[j], coeff->coeffs4[j].y) -
+        int32_t c3y = c1y + MUL_Q(coeff->reson_coeffs[j], coeff->coeffs4[j].y) -
                       coeff->coeffs5[j].y;
 
         coeff->coeffs3[j].x = c3x;
@@ -199,24 +198,24 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
         coeff->coeffs4[j].x = c3x;
         coeff->coeffs4[j].y = c3y;
 
-        sumX += MUL_Q(c3x, coeff->gains[j]);
-        sumY += MUL_Q(c3y, coeff->gains[j]);
+        sum_x += MUL_Q(c3x, coeff->gains[j]);
+        sum_y += MUL_Q(c3y, coeff->gains[j]);
       }
 
-      int32_t magSq = 0;
-      magSq = MUL_Q(sumX, sumX) + MUL_Q(sumY, sumY);
+      int32_t mag_sq = 0;
+      mag_sq = MUL_Q(sum_x, sum_x) + MUL_Q(sum_y, sum_y);
 
-      if (v->spectrumData[i] < magSq)
-        v->spectrumData[i] = magSq;
+      if (v->spectrum_data[i] < mag_sq)
+        v->spectrum_data[i] = mag_sq;
     }
   }
 
-  /*
+  if (!apply_sqrt)
+    return;
   for (int i = 0; i < v->num_coeffs; i++) {
-      int64_t magSq_shifted = (int64_t)v->spectrumData[i] << Q_SHIFT;
-      v->spectrumData[i] = isqrt_q16(magSq_shifted);
+    int64_t mag_sq_shifted = (int64_t)v->spectrum_data[i] << Q_SHIFT;
+    v->spectrum_data[i] = isqrt_q16(mag_sq_shifted);
   }
-  */
 }
 
 void generate_12tet_bands(FreqBand *bands, int start_midi_note, int num_notes) {
@@ -232,30 +231,28 @@ void generate_12tet_bands(FreqBand *bands, int start_midi_note, int num_notes) {
 }
 
 int main() {
-  FreqBand bands[61];
-  generate_12tet_bands(bands, 36, 61);
+  FreqBand bands[MAX_BANDS];
+  generate_12tet_bands(bands, 36, MAX_BANDS);
 
   double window[2] = {1.0, 0.5};
 
   VQsDFT dft_instance;
 
-  vqsdft_init(&dft_instance, bands, 61, window, 2,
+  vqsdft_init(&dft_instance, bands, MAX_BANDS, window, 2,
               50.0, // temporal smoothing window in ms
-              44100);
+              SAMPLE_RATE);
 
-  int block_size = 128;
-  int32_t q16_samples[128];
+  int32_t q16_samples[BLOCK_SIZE];
 
   struct timespec start, end;
   timespec_get(&start, TIME_UTC);
   int i;
-  for (i = 0; i < block_size * 10000; i++) {
-    int j = i % block_size;
-    double float_sample = sin(2.0 * M_PI * 440.0 * i / 44100.0);
-    /// double float_sample = ((i % 100) / 50.) - 1.; // sawtooth wave, 441Hz
+  for (i = 0; i < BLOCK_SIZE * 1000; i++) {
+    int j = i % BLOCK_SIZE;
+    double float_sample = sin(2.0 * M_PI * 440.0 * i / SAMPLE_RATE);
     q16_samples[j] = FLOAT_TO_Q16(float_sample);
-    if (j == block_size - 1)
-      vqsdft_analyze_block(&dft_instance, q16_samples, block_size);
+    if (j == BLOCK_SIZE - 1)
+      vqsdft_analyze_block(&dft_instance, q16_samples, BLOCK_SIZE, true);
   }
   timespec_get(&end, TIME_UTC);
 
@@ -266,7 +263,7 @@ int main() {
 
   for (i = 0; i < dft_instance.num_coeffs; i++)
     printf("band %d\t(%.2f Hz):\t%f\n", i, bands[i].ctr,
-           Q16_TO_FLOAT(dft_instance.spectrumData[i]));
+           Q16_TO_FLOAT(dft_instance.spectrum_data[i]));
 
   return 0;
 }
