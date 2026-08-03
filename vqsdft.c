@@ -135,7 +135,7 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
     for (int i = minIdx; i < maxIdx && (i - minIdx) < MAX_KERNEL_LEN; i++) {
       int j = i - minIdx;
 
-      double amplitude = window[abs(i)] * (-(abs(i) % 2) * 2 + 1);
+      double amplitude = (window[abs(i)] * (-(abs(i) % 2) * 2 + 1)) / c->period;
       double k = bands[b].ctr * c->period / sampleRate + i;
       double fid = -2.0 * M_PI * k;
       double twid = 2.0 * M_PI * k / c->period;
@@ -199,8 +199,8 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
         coeff->coeffs4[j].x = c3x;
         coeff->coeffs4[j].y = c3y;
 
-        sumX += MUL_Q(c3x, coeff->gains[j]) / coeff->period;
-        sumY += MUL_Q(c3y, coeff->gains[j]) / coeff->period;
+        sumX += MUL_Q(c3x, coeff->gains[j]);
+        sumY += MUL_Q(c3y, coeff->gains[j]);
       }
 
       int32_t magSq = 0;
