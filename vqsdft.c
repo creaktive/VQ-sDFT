@@ -7,70 +7,11 @@
  * (https://acoustics.asn.au/conference_proceedings/AAS2021/papers/p6>
  */
 
-#include <math.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 
-// Q16.16 Fixed-Point Configuration
-#define Q_SHIFT 16
-#define Q_SCALE 65536.0
-#define FLOAT_TO_Q16(f) ((int32_t)round((f) * Q_SCALE))
-#define Q16_TO_FLOAT(q) ((double)(q) / Q_SCALE)
-
-// Integer multiplication macro: (A * B) >> 16
-#define MUL_Q(a, b) ((int32_t)((((int64_t)(a)) * ((int64_t)(b))) >> Q_SHIFT))
-
-// Configuration limits to ensure static sizing without dynamic calls
-#define SAMPLE_RATE 8000
-#define BLOCK_SIZE 80
-#define MAX_BANDS 64
-#define MAX_KERNEL_LEN 4 // e.g., window size 2 * 2 = 4 max indices
-#define BUFFER_SIZE 512  // must be a power of two!
-
-// Complex integer pair
-typedef struct {
-  int32_t x;
-  int32_t y;
-} cplx_q16_t;
-
-// Frequency Band configuration
-typedef struct {
-  double lo;
-  double ctr;
-  double hi;
-} FreqBand;
-
-// Filter coefficients for a single band using static inline arrays
-typedef struct {
-  int32_t period;
-  int kernel_length;
-
-  cplx_q16_t fiddles[MAX_KERNEL_LEN];
-  cplx_q16_t twiddles[MAX_KERNEL_LEN];
-  int32_t reson_coeffs[MAX_KERNEL_LEN];
-  int32_t gains[MAX_KERNEL_LEN];
-
-  // Filter states
-  cplx_q16_t coeffs1[MAX_KERNEL_LEN];
-  cplx_q16_t coeffs2[MAX_KERNEL_LEN];
-  cplx_q16_t coeffs3[MAX_KERNEL_LEN];
-  cplx_q16_t coeffs4[MAX_KERNEL_LEN];
-  cplx_q16_t coeffs5[MAX_KERNEL_LEN];
-} sDFT_Coeff;
-
-// Main Context containing only statically sized arrays
-typedef struct {
-  sDFT_Coeff coeffs[MAX_BANDS];
-  int num_coeffs;
-
-  int32_t buffer[BUFFER_SIZE]; // Q16.16 sample history
-  int buffer_idx;
-
-  int32_t spectrum_data[MAX_BANDS]; // Output array
-} VQsDFT;
+#include "vqsdft.h"
 
 // Integer Square Root (Newton-Raphson)
 int32_t isqrt_q16(int64_t n) {
@@ -216,54 +157,4 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
     int64_t mag_sq_shifted = (int64_t)v->spectrum_data[i] << Q_SHIFT;
     v->spectrum_data[i] = isqrt_q16(mag_sq_shifted);
   }
-}
-
-void generate_12tet_bands(FreqBand *bands, int start_midi_note, int num_notes) {
-  for (int i = 0; i < num_notes; i++) {
-    int m = start_midi_note + i;
-
-    double ctr = 440.0 * pow(2.0, (m - 69.0) / 12.0);
-
-    bands[i].ctr = ctr;
-    bands[i].lo = ctr * pow(2.0, -1.0 / 24.0);
-    bands[i].hi = ctr * pow(2.0, 1.0 / 24.0);
-  }
-}
-
-int main() {
-  FreqBand bands[MAX_BANDS];
-  generate_12tet_bands(bands, 36, MAX_BANDS);
-
-  double window[2] = {1.0, 0.5};
-
-  VQsDFT dft_instance;
-
-  vqsdft_init(&dft_instance, bands, MAX_BANDS, window, 2,
-              50.0, // temporal smoothing window in ms
-              SAMPLE_RATE);
-
-  int32_t q16_samples[BLOCK_SIZE];
-
-  struct timespec start, end;
-  timespec_get(&start, TIME_UTC);
-  int i;
-  for (i = 0; i < BLOCK_SIZE * 1000; i++) {
-    int j = i % BLOCK_SIZE;
-    double float_sample = sin(2.0 * M_PI * 440.0 * i / SAMPLE_RATE);
-    q16_samples[j] = FLOAT_TO_Q16(float_sample);
-    if (j == BLOCK_SIZE - 1)
-      vqsdft_analyze_block(&dft_instance, q16_samples, BLOCK_SIZE, true);
-  }
-  timespec_get(&end, TIME_UTC);
-
-  long seconds = end.tv_sec - start.tv_sec;
-  long nanoseconds = end.tv_nsec - start.tv_nsec;
-  double elapsed_ms = (seconds * 1000.0) + ((double)nanoseconds / 1000000.0);
-  printf("benchmark: %.0f samples per second\n\n", i / (elapsed_ms / 1000.0));
-
-  for (i = 0; i < dft_instance.num_coeffs; i++)
-    printf("band %d\t(%.2f Hz):\t%f\n", i, bands[i].ctr,
-           Q16_TO_FLOAT(dft_instance.spectrum_data[i]));
-
-  return 0;
 }
