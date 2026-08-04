@@ -52,7 +52,7 @@ int main(void) {
 #endif
 
   FreqBand bands[MAX_BANDS];
-  generate_12tet_bands(bands, 36, MAX_BANDS);
+  generate_12tet_bands(bands, 36, MAX_BANDS, 1.0);
 
   double window[2] = {1.0, 0.5};
 

@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
   snd_pcm_t *handle = alsa_init(device);
 
   FreqBand bands[MAX_BANDS];
-  generate_12tet_bands(bands, 36, MAX_BANDS);
+  generate_12tet_bands(bands, 36, MAX_BANDS, 0.01);
 
   double window[2] = {1.0, 0.5};
 
@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
 
     vqsdft_analyze_block(&dft_instance, q16_samples, BLOCK_SIZE, false);
 
-    dump_spectrum(&dft_instance, 12);
+    dump_spectrum(&dft_instance, 8);
   }
 
   return 0;
