@@ -133,6 +133,17 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
         int32_t c3y = c1y + MUL_Q(coeff->reson_coeffs[j], coeff->coeffs4[j].y) -
                       coeff->coeffs5[j].y;
 
+        // Force states to collapse to zero rather than getting locked in Q16
+        // rounding
+        if (c3x > 0)
+          c3x -= 1;
+        else if (c3x < 0)
+          c3x += 1;
+        if (c3y > 0)
+          c3y -= 1;
+        else if (c3y < 0)
+          c3y += 1;
+
         coeff->coeffs3[j].x = c3x;
         coeff->coeffs3[j].y = c3y;
         coeff->coeffs5[j].x = coeff->coeffs4[j].x;
