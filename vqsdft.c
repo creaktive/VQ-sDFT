@@ -103,9 +103,10 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
     for (int i = 0; i < v->num_coeffs; i++) {
       sDFT_Coeff *coeff = &v->coeffs[i];
 
-      int oldest_idx = (v->buffer_idx - coeff->period) & (BUFFER_SIZE - 1);
+      int oldest_idx = (v->buffer_idx - coeff->period);
       if (oldest_idx < 0)
         oldest_idx += BUFFER_SIZE;
+      oldest_idx &= (BUFFER_SIZE - 1);
 
       int32_t bufLatest = v->buffer[v->buffer_idx];
       int32_t bufOldest = v->buffer[oldest_idx];
