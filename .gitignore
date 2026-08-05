@@ -1,3 +1,4 @@
 *.o
 benchmark
 music-spectrum
+build/
