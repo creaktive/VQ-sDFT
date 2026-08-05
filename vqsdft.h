@@ -66,6 +66,6 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
                  int sample_rate);
 
 void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
-                          int num_samples, bool apply_sqrt);
+                          int num_samples);
 
 #endif

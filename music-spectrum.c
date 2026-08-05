@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < BLOCK_SIZE; i++)
       q16_samples[i] = alsa_samples[i];
 
-    vqsdft_analyze_block(&dft_instance, q16_samples, BLOCK_SIZE, true);
+    vqsdft_analyze_block(&dft_instance, q16_samples, BLOCK_SIZE);
 
     dump_spectrum(&dft_instance, 4);
   }

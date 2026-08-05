@@ -92,7 +92,7 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
 }
 
 void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
-                          int num_samples, bool apply_sqrt) {
+                          int num_samples) {
   for (int i = 0; i < v->num_coeffs; i++)
     v->spectrum_data[i] = 0;
 
@@ -134,15 +134,9 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
                       coeff->coeffs5[j].y;
 
         // Force states to collapse to zero rather than getting locked in Q16
-        // rounding
-        if (c3x > 0)
-          c3x -= 1;
-        else if (c3x < 0)
-          c3x += 1;
-        if (c3y > 0)
-          c3y -= 1;
-        else if (c3y < 0)
-          c3y += 1;
+        // rounding. Branchless active pull-down using bitwise arithmetic:
+        c3x -= (c3x >> 31) - (-c3x >> 31);
+        c3y -= (c3y >> 31) - (-c3y >> 31);
 
         coeff->coeffs3[j].x = c3x;
         coeff->coeffs3[j].y = c3y;
@@ -163,8 +157,6 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
     }
   }
 
-  if (!apply_sqrt)
-    return;
   for (int i = 0; i < v->num_coeffs; i++) {
     int64_t mag_sq_shifted = (int64_t)v->spectrum_data[i] << Q_SHIFT;
     v->spectrum_data[i] = isqrt_q16(mag_sq_shifted);

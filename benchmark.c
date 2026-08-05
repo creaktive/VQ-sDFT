@@ -71,7 +71,7 @@ int main(void) {
       double float_sample = sin(2.0 * M_PI * 440.0 * i / SAMPLE_RATE);
       q16_samples[j] = FLOAT_TO_Q16(float_sample);
       if (j == BLOCK_SIZE - 1)
-        vqsdft_analyze_block(&dft_instance, q16_samples, BLOCK_SIZE, true);
+        vqsdft_analyze_block(&dft_instance, q16_samples, BLOCK_SIZE);
     }
     benchmark_end(i);
 
