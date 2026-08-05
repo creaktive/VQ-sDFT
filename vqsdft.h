@@ -17,7 +17,7 @@
 // Configuration limits to ensure static sizing without dynamic calls
 #define MAX_BANDS 64
 #define MAX_KERNEL_LEN 4 // e.g., window size 2 * 2 = 4 max indices
-#define BUFFER_SIZE 2048 // must be a power of two!
+#define BUFFER_SIZE 8192 // must be a power of two!
 
 // Complex integer pair
 typedef struct {
