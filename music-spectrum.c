@@ -35,16 +35,16 @@ snd_pcm_t *alsa_init(const char *device) {
 }
 
 ssize_t alsa_read(snd_pcm_t *handle, int16_t *buffer, size_t frames) {
-  int err = (int)snd_pcm_readi(handle, buffer, frames);
-  if (err < 0) {
-    err = snd_pcm_recover(handle, err, 0);
-    if (err < 0) {
-      printf("Read error: %s\n", snd_strerror(err));
+  int len = (int)snd_pcm_readi(handle, buffer, frames);
+  if (len < 0) {
+    len = snd_pcm_recover(handle, len, 0);
+    if (len < 0) {
+      printf("Read error: %s\n", snd_strerror(len));
       exit(3);
     }
     return 0;
   }
-  return err;
+  return len;
 }
 
 static inline uint8_t q16_to_u8_clamped(int32_t v) {
@@ -91,10 +91,6 @@ int main(int argc, char *argv[]) {
     if ((len = alsa_read(handle, alsa_samples, BLOCK_SIZE)) != BLOCK_SIZE) {
       if (len == 0)
         break;
-      if (len < 0) {
-        printf("Read returned error\n");
-        exit(4);
-      }
       continue;
     }
 
