@@ -1,6 +1,9 @@
 CFLAGS=-O3 -ffast-math -flto -fomit-frame-pointer -funroll-loops -fno-math-errno \
-	   -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wundef -fno-common
+	   -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wundef -fno-common \
+	   -MMD -MP
 LDLIBS=-lm
+SRCS = $(wildcard *.c)
+DEPS = $(SRCS:.c=.d)
 
 all: benchmark music-spectrum
 
@@ -13,6 +16,8 @@ pretty:
 	clang-format -i --sort-includes *.[ch]
 
 clean:
-	rm -f *.o benchmark music-spectrum
+	rm -f *.d *.o benchmark music-spectrum
+
+-include $(DEPS)
 
 .PHONY: all clean pretty
