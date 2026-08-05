@@ -1,4 +1,5 @@
 #include <alsa/asoundlib.h>
+#include <signal.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -69,6 +70,9 @@ void dump_spectrum(const VQsDFT *v, int threshold) {
   putchar('\n');
 }
 
+sig_atomic_t should_exit = 0;
+void signal_handler(/* int sig */) { should_exit = 1; }
+
 int main(int argc, char *argv[]) {
   const char *device = (argc > 1) ? argv[1] : "plug:dsnoop";
   snd_pcm_t *handle = alsa_init(device);
@@ -86,7 +90,10 @@ int main(int argc, char *argv[]) {
   int16_t alsa_samples[BLOCK_SIZE];
   int32_t q16_samples[BLOCK_SIZE];
 
-  while (true) {
+  signal(SIGINT, signal_handler);
+  signal(SIGTERM, signal_handler);
+
+  while (!should_exit) {
     ssize_t len;
     if ((len = alsa_read(handle, alsa_samples, BLOCK_SIZE)) != BLOCK_SIZE) {
       if (len == 0)
@@ -101,6 +108,8 @@ int main(int argc, char *argv[]) {
 
     dump_spectrum(&dft_instance, 4);
   }
+
+  snd_pcm_close(handle);
 
   return 0;
 }
