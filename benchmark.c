@@ -3,13 +3,15 @@
 #include "12tet.h"
 #include "vqsdft.h"
 
+#define SAMPLE_RATE 8000
+#define BLOCK_SIZE 80
+#define BANDS 61
+
 #ifdef TARGET_PICO
 
 #include "pico/stdlib.h"
 #include "pico/time.h"
 
-#define SAMPLE_RATE 8000
-#define BLOCK_SIZE 80
 #define ITERATIONS 1000
 
 uint64_t start;
@@ -26,8 +28,6 @@ void benchmark_end(int i) {
 
 #include <time.h>
 
-#define SAMPLE_RATE 48000
-#define BLOCK_SIZE 480
 #define ITERATIONS 10000
 
 struct timespec start;
@@ -51,14 +51,14 @@ int main(void) {
   stdio_init_all();
 #endif
 
-  FreqBand bands[MAX_BANDS];
-  generate_12tet_bands(bands, 36, MAX_BANDS, 1.0);
+  FreqBand bands[BANDS];
+  generate_12tet_bands(bands, 36, BANDS, 0.0);
 
   double window[2] = {1.0, 0.5};
 
   VQsDFT dft_instance;
-  vqsdft_init(&dft_instance, bands, MAX_BANDS, window, 2,
-              50.0, // temporal smoothing window in ms
+  vqsdft_init(&dft_instance, bands, BANDS, window, 2,
+              100.0, // temporal smoothing window in ms
               SAMPLE_RATE);
 
   int32_t q16_samples[BLOCK_SIZE];
