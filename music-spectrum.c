@@ -49,7 +49,7 @@ ssize_t alsa_read(snd_pcm_t *handle, int16_t *buffer, size_t frames) {
   return len;
 }
 
-static inline uint8_t mag_to_u8_clamped(float v) {
+uint8_t mag_to_u8_clamped(float v) {
   if (v >= 1.0f)
     return 255;
   return (uint8_t)(v * 255.0f);

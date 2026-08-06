@@ -7,10 +7,6 @@
  * (https://acoustics.asn.au/conference_proceedings/AAS2021/papers/p6>
  */
 
-// Tell the compiler it is safe to ignore NaN/Infinity edge cases so it can
-// compile the * operator down to raw, fast instructions
-#pragma STDC CX_LIMITED_RANGE ON
-
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -30,13 +26,13 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
     v->buffer[i] = 0.0f;
 
   for (int b = 0; b < num_bands; b++) {
-    sDFT_Coeff *c = &v->coeffs[b];
+    sDFT_Coeff *coeff = &v->coeffs[b];
 
     float period_float =
         (float)sample_rate /
         (fabsf(bands[b].hi - bands[b].lo) + 1.0f / (time_res / 1000.0f));
-    c->period = (int)period_float;
-    if (c->period >= BUFFER_SIZE) {
+    coeff->period = (int)period_float;
+    if (coeff->period >= BUFFER_SIZE) {
       printf("period for band %d exceeds BUFFER_SIZE!\n", b);
       exit(2);
     }
@@ -49,30 +45,31 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
       printf("kernel length for band %d is larger than MAX_KERNEL_LEN!\n", b);
       exit(3);
     }
-    c->kernel_length = kernel_len;
+    coeff->kernel_len = kernel_len;
 
     // Reset filter state arrays
-    for (int j = 0; j < c->kernel_length; j++) {
-      c->coeffs1[j] = 0.0f + 0.0f * I;
-      c->coeffs2[j] = 0.0f + 0.0f * I;
-      c->coeffs3[j] = 0.0f + 0.0f * I;
-      c->coeffs4[j] = 0.0f + 0.0f * I;
-      c->coeffs5[j] = 0.0f + 0.0f * I;
+    for (int j = 0; j < coeff->kernel_len; j++) {
+      coeff->coeffs1[j] = 0.0f + 0.0f * I;
+      coeff->coeffs2[j] = 0.0f + 0.0f * I;
+      coeff->coeffs3[j] = 0.0f + 0.0f * I;
+      coeff->coeffs4[j] = 0.0f + 0.0f * I;
+      coeff->coeffs5[j] = 0.0f + 0.0f * I;
     }
 
     for (int i = min_idx; i < max_idx && (i - min_idx) < MAX_KERNEL_LEN; i++) {
       int j = i - min_idx;
 
       float amplitude = window[abs(i)] * (float)(-(abs(i) % 2) * 2 + 1);
-      float k = bands[b].ctr * (float)c->period / (float)sample_rate + (float)i;
+      float k =
+          bands[b].ctr * (float)coeff->period / (float)sample_rate + (float)i;
       float fid = -2.0f * (float)M_PI * k;
-      float twid = 2.0f * (float)M_PI * k / (float)c->period;
+      float twid = 2.0f * (float)M_PI * k / (float)coeff->period;
       float reson = 2.0f * cosf(twid);
 
-      c->fiddles[j] = cosf(fid) + sinf(fid) * I;
-      c->twiddles[j] = cosf(twid) + sinf(twid) * I;
-      c->reson_coeffs[j] = reson;
-      c->gains[j] = amplitude / (float)c->period;
+      coeff->fiddles[j] = cosf(fid) + sinf(fid) * I;
+      coeff->twiddles[j] = cosf(twid) + sinf(twid) * I;
+      coeff->reson_coeffs[j] = reson;
+      coeff->gains[j] = amplitude / (float)coeff->period;
     }
   }
 }
@@ -90,7 +87,7 @@ void vqsdft_analyze_block(VQsDFT *v, const float *samples, int num_samples) {
 
       float complex sum = 0.0f;
 
-      for (int j = 0; j < coeff->kernel_length; j++) {
+      for (int j = 0; j < coeff->kernel_len; j++) {
         float complex comb = buf_latest * coeff->fiddles[j] - buf_oldest;
         float complex c1 = comb * coeff->twiddles[j] - coeff->coeffs2[j];
 

@@ -11,13 +11,13 @@
 #define MAX_KERNEL_LEN 4 // e.g., window size 2 * 2 = 4 max indices
 
 /* Ring buffer accessors - macros for branchless wrap-around.
- * BUFFER_WRITE(buf, v) inserts v at the latest position, auto-increments index.
- * BUFFER_READN(buf, n) reads from n-th position (0=latest, 1=previous).
+ * BUFFER_WRITE(VQsDFT, s) inserts s at the latest position, increments index.
+ * BUFFER_READN(VQsDFT, s) reads from n-th position (0=latest, 1=previous).
  */
 #define BUFFER_SIZE 8192 // must be a power of two!
 #define BUFFER_MASK (BUFFER_SIZE - 1)
-#define BUFFER_WRITE(p, v) ((p->buffer)[(p->buffer_idx++) & BUFFER_MASK] = (v))
-#define BUFFER_READN(p, n) ((p->buffer)[(p->buffer_idx + (~n)) & BUFFER_MASK])
+#define BUFFER_WRITE(v, s) ((v->buffer)[(v->buffer_idx++) & BUFFER_MASK] = (s))
+#define BUFFER_READN(v, n) ((v->buffer)[(v->buffer_idx + (~n)) & BUFFER_MASK])
 
 // Frequency Band configuration
 typedef struct {
@@ -29,7 +29,7 @@ typedef struct {
 // Filter coefficients for a single band using static inline arrays
 typedef struct {
   int period;
-  int kernel_length;
+  int kernel_len;
 
   complex float fiddles[MAX_KERNEL_LEN];
   complex float twiddles[MAX_KERNEL_LEN];
