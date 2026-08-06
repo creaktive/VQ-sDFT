@@ -6,9 +6,9 @@
 #include "12tet.h"
 #include "vqsdft.h"
 
-#define SAMPLE_RATE 8000
-#define BLOCK_SIZE 80
-#define BANDS 61
+#define SAMPLE_RATE 24000
+#define BLOCK_SIZE 240
+#define BANDS MAX_BANDS
 
 snd_pcm_t *alsa_init(const char *device) {
   int err;
@@ -49,19 +49,17 @@ ssize_t alsa_read(snd_pcm_t *handle, int16_t *buffer, size_t frames) {
   return len;
 }
 
-static inline uint8_t q16_to_u8_clamped(int32_t v) {
-  if (v <= 0)
-    return 0;
-  if (v >= 65536)
+static inline uint8_t mag_to_u8_clamped(float v) {
+  if (v >= 1.0f)
     return 255;
-  return (uint8_t)(((v * 255) + 32768) >> Q_SHIFT);
+  return (uint8_t)(v * 255.0f);
 }
 
 void dump_spectrum(const VQsDFT *v, int threshold) {
   static const char HEX_LUT[] = "0123456789abcdef";
 
   for (int i = 0; i < v->num_coeffs; i++) {
-    uint8_t val = q16_to_u8_clamped(v->spectrum_data[i]);
+    uint8_t val = mag_to_u8_clamped(2.0f * v->spectrum_data[i]);
     if (val < threshold)
       val = 0;
     putchar(HEX_LUT[val >> 4]);
@@ -81,7 +79,7 @@ int main(int argc, char *argv[]) {
   FreqBand bands[BANDS];
   generate_12tet_bands(bands, 36, BANDS, 0.0);
 
-  double window[2] = {1.0, 0.5};
+  float window[2] = {1.0, 0.5};
 
   VQsDFT dft_instance;
   vqsdft_init(&dft_instance, bands, BANDS, window, 2,
@@ -89,7 +87,7 @@ int main(int argc, char *argv[]) {
               SAMPLE_RATE);
 
   int16_t alsa_samples[BLOCK_SIZE];
-  int32_t q16_samples[BLOCK_SIZE];
+  float samples[BLOCK_SIZE];
 
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
@@ -102,10 +100,11 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
+    // ALSA uses too much CPU when reading as SND_PCM_FORMAT_FLOAT_LE
     for (int i = 0; i < BLOCK_SIZE; i++)
-      q16_samples[i] = alsa_samples[i];
+      samples[i] = alsa_samples[i] / 32768.0f;
 
-    vqsdft_analyze_block(&dft_instance, q16_samples, BLOCK_SIZE);
+    vqsdft_analyze_block(&dft_instance, samples, BLOCK_SIZE);
 
     dump_spectrum(&dft_instance, 4);
   }

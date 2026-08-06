@@ -1,8 +1,8 @@
 # VQ-sDFT
 
-Embedded-friendly, fixed-point (Q16.16) implementation of the Variable-Q
-Sliding DFT, for real-time constant-Q spectrum analysis on microcontrollers
-(e.g. Raspberry Pi Pico) and desktop Linux.
+Embedded-friendly implementation of the Variable-Q Sliding DFT, for real-time
+constant-Q spectrum analysis on microcontrollers (e.g. Raspberry Pi Pico) and
+desktop Linux.
 
 Port of [TF3RDL's VQ-sDFT](https://gist.github.com/TF3RDL/1810c570bad4f75f77941c981c65723f),
 based on ["Application of Improved Sliding DFT Algorithm for Non-Integer k"](https://acoustics.asn.au/conference_proceedings/AAS2021/papers/p6)
