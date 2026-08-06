@@ -17,7 +17,15 @@
 // Configuration limits to ensure static sizing without dynamic calls
 #define MAX_BANDS 64
 #define MAX_KERNEL_LEN 4 // e.g., window size 2 * 2 = 4 max indices
+
+/* Ring buffer accessors - macros for branchless wrap-around.
+ * BUFFER_WRITE(buf, v) inserts v at the latest position, auto-increments index.
+ * BUFFER_READN(buf, n) reads from n-th position (0=latest, 1=previous).
+ */
 #define BUFFER_SIZE 8192 // must be a power of two!
+#define BUFFER_MASK (BUFFER_SIZE - 1)
+#define BUFFER_WRITE(p, v) ((p->buffer)[(p->buffer_idx++) & BUFFER_MASK] = (v))
+#define BUFFER_READN(p, n) ((p->buffer)[(p->buffer_idx + (~n)) & BUFFER_MASK])
 
 // Complex integer pair
 typedef struct {

@@ -34,10 +34,10 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
     exit(1);
   }
   v->num_coeffs = num_bands;
-  v->buffer_idx = BUFFER_SIZE - 1;
+  v->buffer_idx = 0;
 
   // Zero-initialize buffers
-  for (int i = 0; i <= BUFFER_SIZE - 1; i++)
+  for (int i = 0; i < BUFFER_SIZE; i++)
     v->buffer[i] = 0;
   for (int i = 0; i < MAX_BANDS; i++)
     v->spectrum_data[i] = 0;
@@ -47,7 +47,7 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
 
     double period_float = sample_rate / (fabs(bands[b].hi - bands[b].lo) +
                                          1.0 / (time_res / 1000.0));
-    if (period_float > BUFFER_SIZE - 1) {
+    if (period_float >= BUFFER_SIZE) {
       printf("period for band %d exceeds BUFFER_SIZE!\n", b);
       exit(2);
     }
@@ -97,26 +97,20 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
     v->spectrum_data[i] = 0;
 
   for (int s = 0; s < num_samples; s++) {
-    v->buffer_idx = (v->buffer_idx + 1) & (BUFFER_SIZE - 1);
-    v->buffer[v->buffer_idx] = samples_q16[s];
+    int32_t buf_latest = samples_q16[s];
+    BUFFER_WRITE(v, buf_latest);
 
     for (int i = 0; i < v->num_coeffs; i++) {
       sDFT_Coeff *coeff = &v->coeffs[i];
 
-      int oldest_idx = (v->buffer_idx - coeff->period);
-      if (oldest_idx < 0)
-        oldest_idx += BUFFER_SIZE;
-      oldest_idx &= (BUFFER_SIZE - 1);
-
-      int32_t bufLatest = v->buffer[v->buffer_idx];
-      int32_t bufOldest = v->buffer[oldest_idx];
+      int32_t buf_oldest = BUFFER_READN(v, coeff->period);
 
       int32_t sum_x = 0;
       int32_t sum_y = 0;
 
       for (int j = 0; j < coeff->kernel_length; j++) {
-        int32_t combX = MUL_Q(bufLatest, coeff->fiddles[j].x) - bufOldest;
-        int32_t combY = MUL_Q(bufLatest, coeff->fiddles[j].y);
+        int32_t combX = MUL_Q(buf_latest, coeff->fiddles[j].x) - buf_oldest;
+        int32_t combY = MUL_Q(buf_latest, coeff->fiddles[j].y);
 
         int32_t c1x = MUL_Q(combX, coeff->twiddles[j].x) -
                       MUL_Q(combY, coeff->twiddles[j].y) - coeff->coeffs2[j].x;
@@ -149,9 +143,7 @@ void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
         sum_y += MUL_Q(c3y, coeff->gains[j]);
       }
 
-      int32_t mag_sq = 0;
-      mag_sq = MUL_Q(sum_x, sum_x) + MUL_Q(sum_y, sum_y);
-
+      int32_t mag_sq = MUL_Q(sum_x, sum_x) + MUL_Q(sum_y, sum_y);
       if (v->spectrum_data[i] < mag_sq)
         v->spectrum_data[i] = mag_sq;
     }
