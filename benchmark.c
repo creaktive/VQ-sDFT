@@ -10,8 +10,8 @@
 #include "pico/stdlib.h"
 #include "pico/time.h"
 
-#define SAMPLE_RATE 8000
-#define BLOCK_SIZE 80
+#define SAMPLE_RATE 11025
+#define BLOCK_SIZE 110
 #define ITERATIONS 1000
 
 uint64_t start;
@@ -28,8 +28,8 @@ void benchmark_end(int i) {
 
 #include <time.h>
 
-#define SAMPLE_RATE 48000
-#define BLOCK_SIZE 480
+#define SAMPLE_RATE 44100
+#define BLOCK_SIZE 441
 #define ITERATIONS 10000
 
 struct timespec start;
@@ -60,7 +60,7 @@ int main(void) {
 
   VQsDFT dft_instance;
   vqsdft_init(&dft_instance, bands, BANDS, window, 2,
-              100.0f, // temporal smoothing window in ms
+              0.1f, // temporal smoothing window in seconds
               SAMPLE_RATE);
 
   float samples[BLOCK_SIZE];

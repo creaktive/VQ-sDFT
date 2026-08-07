@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
 
   VQsDFT dft_instance;
   vqsdft_init(&dft_instance, bands, BANDS, window, 2,
-              100.0, // temporal smoothing window in ms
+              0.1f, // temporal smoothing window in seconds
               SAMPLE_RATE);
 
   int16_t alsa_samples[BLOCK_SIZE];

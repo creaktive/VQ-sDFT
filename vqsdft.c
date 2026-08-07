@@ -28,9 +28,8 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
   for (int b = 0; b < num_bands; b++) {
     sDFT_Coeff *coeff = &v->coeffs[b];
 
-    float period_float =
-        (float)sample_rate /
-        (fabsf(bands[b].hi - bands[b].lo) + 1.0f / (time_res / 1000.0f));
+    float period_float = (float)sample_rate /
+                         (fabsf(bands[b].hi - bands[b].lo) + 1.0f / time_res);
     coeff->period = (int)period_float;
     if (coeff->period >= BUFFER_SIZE) {
       printf("period for band %d exceeds BUFFER_SIZE!\n", b);
