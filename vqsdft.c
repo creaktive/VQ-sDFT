@@ -74,7 +74,8 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
 }
 
 void vqsdft_analyze_block(VQsDFT *v, const float *samples, int num_samples) {
-  float complex sums[MAX_BANDS];
+  for (int i = 0; i < v->num_coeffs; i++)
+    v->spectrum_data[i] = 0.0;
 
   for (int s = 0; s < num_samples; s++) {
     float buf_latest = samples[s];
@@ -103,11 +104,12 @@ void vqsdft_analyze_block(VQsDFT *v, const float *samples, int num_samples) {
         sum += c3 * coeff->gains[j];
       }
 
-      sums[i] = sum;
+      float mag_sq = crealf(sum) * crealf(sum) + cimagf(sum) * cimagf(sum);
+      if (v->spectrum_data[i] < mag_sq)
+        v->spectrum_data[i] = mag_sq;
     }
   }
 
   for (int i = 0; i < v->num_coeffs; i++)
-    v->spectrum_data[i] = sqrtf(crealf(sums[i]) * crealf(sums[i]) +
-                                cimagf(sums[i]) * cimagf(sums[i]));
+    v->spectrum_data[i] = sqrtf(v->spectrum_data[i]);
 }

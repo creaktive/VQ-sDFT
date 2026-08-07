@@ -11,8 +11,8 @@
 #define MAX_KERNEL_LEN 4 // e.g., window size 2 * 2 = 4 max indices
 
 /* Ring buffer accessors - macros for branchless wrap-around.
- * BUFFER_WRITE(VQsDFT, s) inserts s at the latest position, increments index.
- * BUFFER_READN(VQsDFT, s) reads from n-th position (0=latest, 1=previous).
+ * BUFFER_WRITE(v, s) inserts s at the latest position, increments index.
+ * BUFFER_READN(v, n) reads from n-th position (0=latest, 1=previous).
  */
 #define BUFFER_SIZE 8192 // must be a power of two!
 #define BUFFER_MASK (BUFFER_SIZE - 1)
