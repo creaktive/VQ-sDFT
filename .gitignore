@@ -1,5 +1,6 @@
 *.d
 *.o
 benchmark
+doorbell
 music-spectrum
 build/
