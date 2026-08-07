@@ -3,15 +3,15 @@
 #include "12tet.h"
 #include "vqsdft.h"
 
-#define SAMPLE_RATE 8000
-#define BLOCK_SIZE 80
-#define BANDS 61
+#define BANDS MAX_BANDS
 
 #ifdef TARGET_PICO
 
 #include "pico/stdlib.h"
 #include "pico/time.h"
 
+#define SAMPLE_RATE 11025
+#define BLOCK_SIZE 110
 #define ITERATIONS 1000
 
 uint64_t start;
@@ -28,6 +28,8 @@ void benchmark_end(int i) {
 
 #include <time.h>
 
+#define SAMPLE_RATE 44100
+#define BLOCK_SIZE 441
 #define ITERATIONS 10000
 
 struct timespec start;
@@ -54,33 +56,37 @@ int main(void) {
   FreqBand bands[BANDS];
   generate_12tet_bands(bands, 36, BANDS, 0.0);
 
-  double window[2] = {1.0, 0.5};
+  float window[2] = {1.0f, 0.5f};
 
   VQsDFT dft_instance;
   vqsdft_init(&dft_instance, bands, BANDS, window, 2,
-              100.0, // temporal smoothing window in ms
+              0.1f, // temporal smoothing window in seconds
               SAMPLE_RATE);
 
-  int32_t q16_samples[BLOCK_SIZE];
+  float samples[BLOCK_SIZE];
 
   while (true) {
     benchmark_start();
     int i;
     for (i = 0; i < BLOCK_SIZE * ITERATIONS; i++) {
       int j = i % BLOCK_SIZE;
-      double float_sample = sin(2.0 * M_PI * 440.0 * i / SAMPLE_RATE);
-      q16_samples[j] = FLOAT_TO_Q16(float_sample);
-      if (j == BLOCK_SIZE - 1)
-        vqsdft_analyze_block(&dft_instance, q16_samples, BLOCK_SIZE);
+      samples[j] =
+          sinf(2.0f * (float)M_PI * 440.0f * (float)i / (float)SAMPLE_RATE);
+      if (j == BLOCK_SIZE - 1) {
+        vqsdft_analyze_block(&dft_instance, samples, BLOCK_SIZE);
+
+        // prevent GCC from optimizing away the benchmarked function
+        (void)((volatile const float *)dft_instance.spectrum_data)[0];
+      }
     }
     benchmark_end(i);
 
-    continue;
-
+    /*
     printf("\n");
     for (i = 0; i < dft_instance.num_coeffs; i++)
       printf("band %d\t(%.2f Hz):\t%f\n", i, bands[i].ctr,
-             Q16_TO_FLOAT(dft_instance.spectrum_data[i]));
+             dft_instance.spectrum_data[i]);
+    */
   }
 
   return 0;

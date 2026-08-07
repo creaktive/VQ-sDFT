@@ -1,8 +1,8 @@
 # VQ-sDFT
 
-Embedded-friendly, fixed-point (Q16.16) implementation of the Variable-Q
-Sliding DFT, for real-time constant-Q spectrum analysis on microcontrollers
-(e.g. Raspberry Pi Pico) and desktop Linux.
+Embedded-friendly implementation of the Variable-Q Sliding DFT, for real-time
+constant-Q spectrum analysis on microcontrollers (e.g. Raspberry Pi Pico) and
+desktop Linux.
 
 Port of [TF3RDL's VQ-sDFT](https://gist.github.com/TF3RDL/1810c570bad4f75f77941c981c65723f),
 based on ["Application of Improved Sliding DFT Algorithm for Non-Integer k"](https://acoustics.asn.au/conference_proceedings/AAS2021/papers/p6)
@@ -16,7 +16,7 @@ frequency-resolution trade-offs of a fixed-size FFT.
 
 ## Files
 
-- `vqsdft.h` / `vqsdft.c` - core algorithm: static, fixed-point sliding DFT
+- `vqsdft.h` / `vqsdft.c` - core algorithm: Variable-Q Sliding DFT
   with configurable per-band frequency ranges. No dynamic allocation; all
   buffers sized at compile time (`MAX_BANDS`, `MAX_KERNEL_LEN`, `BUFFER_SIZE`).
 - `12tet.h` / `12tet.c` - helper to generate 12-tone equal temperament
@@ -25,7 +25,7 @@ frequency-resolution trade-offs of a fixed-size FFT.
   Linux or on a Pico via `TARGET_PICO`.
 - `music-spectrum.c` - Linux demo that captures live audio via ALSA and
   prints a hex-encoded spectrum bar per line (64 semitone bands from
-  C2, 8kHz sample rate).
+  C2, 24kHz sample rate).
 
 ## Building & Running
 

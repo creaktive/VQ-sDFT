@@ -7,27 +7,13 @@
  * (https://acoustics.asn.au/conference_proceedings/AAS2021/papers/p6>
  */
 
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "vqsdft.h"
 
-// Integer Square Root (Newton-Raphson)
-int32_t isqrt_q16(int64_t n) {
-  if (n <= 0)
-    return 0;
-  int64_t x = n;
-  int64_t y = (x + 1) >> 1;
-  while (y < x) {
-    x = y;
-    y = (x + n / x) >> 1;
-  }
-  return (int32_t)x;
-}
-
 void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
-                 const double *window, int window_len, double time_res,
+                 const float *window, int window_len, float time_res,
                  int sample_rate) {
   if (num_bands > MAX_BANDS) {
     printf("%d bands requested while MAX_BANDS=%d!\n", num_bands, MAX_BANDS);
@@ -36,22 +22,19 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
   v->num_coeffs = num_bands;
   v->buffer_idx = 0;
 
-  // Zero-initialize buffers
   for (int i = 0; i < BUFFER_SIZE; i++)
-    v->buffer[i] = 0;
-  for (int i = 0; i < MAX_BANDS; i++)
-    v->spectrum_data[i] = 0;
+    v->buffer[i] = 0.0f;
 
   for (int b = 0; b < num_bands; b++) {
-    sDFT_Coeff *c = &v->coeffs[b];
+    sDFT_Coeff *coeff = &v->coeffs[b];
 
-    double period_float = sample_rate / (fabs(bands[b].hi - bands[b].lo) +
-                                         1.0 / (time_res / 1000.0));
-    if (period_float >= BUFFER_SIZE) {
+    float period_float = (float)sample_rate /
+                         (fabsf(bands[b].hi - bands[b].lo) + 1.0f / time_res);
+    coeff->period = (int)period_float;
+    if (coeff->period >= BUFFER_SIZE) {
       printf("period for band %d exceeds BUFFER_SIZE!\n", b);
       exit(2);
     }
-    c->period = (int32_t)period_float;
 
     int min_idx = -window_len + 1;
     int max_idx = window_len;
@@ -61,96 +44,72 @@ void vqsdft_init(VQsDFT *v, const FreqBand *bands, int num_bands,
       printf("kernel length for band %d is larger than MAX_KERNEL_LEN!\n", b);
       exit(3);
     }
-    c->kernel_length = kernel_len;
+    coeff->kernel_len = kernel_len;
 
     // Reset filter state arrays
-    for (int j = 0; j < MAX_KERNEL_LEN; j++) {
-      c->coeffs1[j] = (cplx_q16_t){0, 0};
-      c->coeffs2[j] = (cplx_q16_t){0, 0};
-      c->coeffs3[j] = (cplx_q16_t){0, 0};
-      c->coeffs4[j] = (cplx_q16_t){0, 0};
-      c->coeffs5[j] = (cplx_q16_t){0, 0};
+    for (int j = 0; j < coeff->kernel_len; j++) {
+      coeff->coeffs1[j] = 0.0f + 0.0f * I;
+      coeff->coeffs2[j] = 0.0f + 0.0f * I;
+      coeff->coeffs3[j] = 0.0f + 0.0f * I;
+      coeff->coeffs4[j] = 0.0f + 0.0f * I;
+      coeff->coeffs5[j] = 0.0f + 0.0f * I;
     }
 
     for (int i = min_idx; i < max_idx && (i - min_idx) < MAX_KERNEL_LEN; i++) {
       int j = i - min_idx;
 
-      double amplitude = (window[abs(i)] * (-(abs(i) % 2) * 2 + 1)) / c->period;
-      double k = bands[b].ctr * c->period / sample_rate + i;
-      double fid = -2.0 * M_PI * k;
-      double twid = 2.0 * M_PI * k / c->period;
-      double reson = 2.0 * cos(twid);
+      float amplitude = window[abs(i)] * (float)(-(abs(i) % 2) * 2 + 1);
+      float k =
+          bands[b].ctr * (float)coeff->period / (float)sample_rate + (float)i;
+      float fid = -2.0f * (float)M_PI * k;
+      float twid = 2.0f * (float)M_PI * k / (float)coeff->period;
+      float reson = 2.0f * cosf(twid);
 
-      c->fiddles[j].x = FLOAT_TO_Q16(cos(fid));
-      c->fiddles[j].y = FLOAT_TO_Q16(sin(fid));
-      c->twiddles[j].x = FLOAT_TO_Q16(cos(twid));
-      c->twiddles[j].y = FLOAT_TO_Q16(sin(twid));
-      c->reson_coeffs[j] = FLOAT_TO_Q16(reson);
-      c->gains[j] = FLOAT_TO_Q16(amplitude);
+      coeff->fiddles[j] = cosf(fid) + sinf(fid) * I;
+      coeff->twiddles[j] = cosf(twid) + sinf(twid) * I;
+      coeff->reson_coeffs[j] = reson;
+      coeff->gains[j] = amplitude / (float)coeff->period;
     }
   }
 }
 
-void vqsdft_analyze_block(VQsDFT *v, const int32_t *samples_q16,
-                          int num_samples) {
+void vqsdft_analyze_block(VQsDFT *v, const float *samples, int num_samples) {
   for (int i = 0; i < v->num_coeffs; i++)
-    v->spectrum_data[i] = 0;
+    v->spectrum_data[i] = 0.0;
 
   for (int s = 0; s < num_samples; s++) {
-    int32_t buf_latest = samples_q16[s];
+    float buf_latest = samples[s];
     BUFFER_WRITE(v, buf_latest);
 
     for (int i = 0; i < v->num_coeffs; i++) {
       sDFT_Coeff *coeff = &v->coeffs[i];
+      float buf_oldest = BUFFER_READN(v, coeff->period);
 
-      int32_t buf_oldest = BUFFER_READN(v, coeff->period);
+      float complex sum = 0.0f;
 
-      int32_t sum_x = 0;
-      int32_t sum_y = 0;
+      for (int j = 0; j < coeff->kernel_len; j++) {
+        float complex comb = buf_latest * coeff->fiddles[j] - buf_oldest;
+        float complex c1 = comb * coeff->twiddles[j] - coeff->coeffs2[j];
 
-      for (int j = 0; j < coeff->kernel_length; j++) {
-        int32_t combX = MUL_Q(buf_latest, coeff->fiddles[j].x) - buf_oldest;
-        int32_t combY = MUL_Q(buf_latest, coeff->fiddles[j].y);
+        coeff->coeffs1[j] = c1;
+        coeff->coeffs2[j] = comb;
 
-        int32_t c1x = MUL_Q(combX, coeff->twiddles[j].x) -
-                      MUL_Q(combY, coeff->twiddles[j].y) - coeff->coeffs2[j].x;
-        int32_t c1y = MUL_Q(combX, coeff->twiddles[j].y) +
-                      MUL_Q(combY, coeff->twiddles[j].x) - coeff->coeffs2[j].y;
+        float complex c3 =
+            c1 + coeff->reson_coeffs[j] * coeff->coeffs4[j] - coeff->coeffs5[j];
 
-        coeff->coeffs1[j].x = c1x;
-        coeff->coeffs1[j].y = c1y;
-        coeff->coeffs2[j].x = combX;
-        coeff->coeffs2[j].y = combY;
+        coeff->coeffs3[j] = c3;
+        coeff->coeffs5[j] = coeff->coeffs4[j];
+        coeff->coeffs4[j] = c3;
 
-        int32_t c3x = c1x + MUL_Q(coeff->reson_coeffs[j], coeff->coeffs4[j].x) -
-                      coeff->coeffs5[j].x;
-        int32_t c3y = c1y + MUL_Q(coeff->reson_coeffs[j], coeff->coeffs4[j].y) -
-                      coeff->coeffs5[j].y;
-
-        // Force states to collapse to zero rather than getting locked in Q16
-        // rounding. Branchless active pull-down using bitwise arithmetic:
-        c3x -= (c3x >> 31) - (-c3x >> 31);
-        c3y -= (c3y >> 31) - (-c3y >> 31);
-
-        coeff->coeffs3[j].x = c3x;
-        coeff->coeffs3[j].y = c3y;
-        coeff->coeffs5[j].x = coeff->coeffs4[j].x;
-        coeff->coeffs5[j].y = coeff->coeffs4[j].y;
-        coeff->coeffs4[j].x = c3x;
-        coeff->coeffs4[j].y = c3y;
-
-        sum_x += MUL_Q(c3x, coeff->gains[j]);
-        sum_y += MUL_Q(c3y, coeff->gains[j]);
+        sum += c3 * coeff->gains[j];
       }
 
-      int32_t mag_sq = MUL_Q(sum_x, sum_x) + MUL_Q(sum_y, sum_y);
+      float mag_sq = crealf(sum) * crealf(sum) + cimagf(sum) * cimagf(sum);
       if (v->spectrum_data[i] < mag_sq)
         v->spectrum_data[i] = mag_sq;
     }
   }
 
-  for (int i = 0; i < v->num_coeffs; i++) {
-    int64_t mag_sq_shifted = (int64_t)v->spectrum_data[i] << Q_SHIFT;
-    v->spectrum_data[i] = isqrt_q16(mag_sq_shifted);
-  }
+  for (int i = 0; i < v->num_coeffs; i++)
+    v->spectrum_data[i] = sqrtf(v->spectrum_data[i]);
 }
