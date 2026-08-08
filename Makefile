@@ -14,9 +14,9 @@ music-spectrum: LDLIBS += -lasound
 
 all: $(TARGETS)
 
-doorbell:       doorbell.o vqsdft.o
+doorbell:       doorbell.o input-alsa.o vqsdft.o
 benchmark:      benchmark.o 12tet.o vqsdft.o
-music-spectrum: music-spectrum.o 12tet.o vqsdft.o
+music-spectrum: music-spectrum.o 12tet.o input-alsa.o vqsdft.o
 
 pretty:
 	clang-format -i --sort-includes *.[ch]
