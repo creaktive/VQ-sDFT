@@ -60,4 +60,4 @@ ssize_t input_read(float *samples, size_t frames) {
   return len;
 }
 
-void input_close() { snd_pcm_close(handle); }
+void input_close(void) { snd_pcm_close(handle); }
