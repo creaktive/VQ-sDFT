@@ -3,9 +3,6 @@
 
 snd_pcm_t *handle;
 
-sig_atomic_t should_exit = 0;
-void signal_handler() { should_exit = 1; }
-
 void input_open(const char *source, const unsigned int sample_rate) {
   snd_pcm_hw_params_t *params;
   int err;
@@ -29,15 +26,9 @@ void input_open(const char *source, const unsigned int sample_rate) {
   }
 
   snd_pcm_prepare(handle);
-
-  signal(SIGINT, signal_handler);
-  signal(SIGTERM, signal_handler);
 }
 
 ssize_t input_read(float *samples, size_t frames) {
-  if (should_exit)
-    return 0;
-
   int16_t buffer[1024];
   if (frames > sizeof(buffer) / sizeof(buffer[0])) {
     printf("Buffer too small!\n");

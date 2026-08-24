@@ -23,9 +23,7 @@ frequency-resolution trade-offs of a fixed-size FFT.
   frequency bands (one per semitone) from a starting MIDI note.
 - `benchmark.c` - throughput benchmark (samples/sec), runs standalone on
   Linux or on a Pico via `TARGET_PICO`.
-- `music-spectrum.c` - Linux demo that captures live audio via ALSA and
-  prints a hex-encoded spectrum bar per line (64 semitone bands from
-  C2, 24kHz sample rate).
+- `music-spectrum.c` - Linux demo that captures live audio via ALSA and drives a [WS2811](https://github.com/jgarff/rpi_ws281x) LED strip (64 semitone bands from B1, 24kHz sample rate).
 
 ## Building & Running
 
