@@ -59,8 +59,6 @@ static uint32_t palette_color_level(ws2811_led_t color, float level) {
 static void render_leds(const VQsDFT *v, ws2811_t *ws2811) {
   for (int i = 0; i < v->num_coeffs; i++) {
     float mag = 2.0f * v->spectrum_data[i];
-    if (mag >= 1.0f)
-      mag = 1.0f;
     ws2811_led_t color = palette_color_level(PALETTE[i % PALETTE_LEN], mag);
     ws2811->channel[0].leds[i * 2] = color;
     ws2811->channel[0].leds[i * 2 + 1] = color;
